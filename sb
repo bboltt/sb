@@ -1,51 +1,24 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf, col, when
-from pyspark.sql.types import IntegerType, DateType
-import datetime
-from pyspark.sql.functions import to_date, lit
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
 # Initialize Spark Session
-spark = SparkSession.builder.appName('example').getOrCreate()
+spark = SparkSession.builder.appName('compute_auc').getOrCreate()
 
-# Sample DataFrame
-data = [
-    ('user1', 'solution1', '2023-01-01', '2023-06-01'),
-    ('user2', 'solution2', None, '2023-03-01'),
-    ('user3', 'solution3', '2023-05-01', None),
-    # Add your actual data here
-]
+# Assume 'df' is your DataFrame and it has 'prediction' and 'ground_truth_label' columns
 
-columns = ['user_id', 'solution_name', 'open_date', 'close_date']
+# Prepare your DataFrame
+# Ensure that 'prediction' column contains raw prediction scores and 'ground_truth_label' contains true labels.
 
-df = spark.createDataFrame(data, schema=columns)
+# Create an instance of BinaryClassificationEvaluator
+evaluator = BinaryClassificationEvaluator(rawPredictionCol="prediction", labelCol="ground_truth_label", metricName="areaUnderROC")
 
-# Convert string dates to DateType
-df = df.withColumn('open_date', to_date(col('open_date')))
-df = df.withColumn('close_date', to_date(col('close_date')))
+# Compute AUC
+auc = evaluator.evaluate(df)
 
-# Define the function to calculate the label
-def calculate_label(open_date, close_date, reference_date):
-    if open_date is not None and open_date <= reference_date + datetime.timedelta(days=210):
-        return 1
-    elif close_date is not None and close_date < reference_date:
-        return 0
-    else:
-        return None
+# Print the AUC
+print(f"The AUC is: {auc}")
 
-# Register the UDF
-calculate_label_udf = udf(calculate_label, IntegerType())
+# Optional: Stop the SparkSession
+spark.stop()
 
-# Apply the function to each row
-reference_date = datetime.date(2023, 1, 1)  # Replace with your actual reference date
-df = df.withColumn(
-    'label',
-    calculate_label_udf(
-        col('open_date'),
-        col('close_date'),
-        lit(reference_date)
-    )
-)
-
-# Show the result
-df.show()
 
