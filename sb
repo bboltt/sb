@@ -1,33 +1,51 @@
-import subprocess
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import udf, col, when
+from pyspark.sql.types import IntegerType, DateType
+import datetime
+from pyspark.sql.functions import to_date, lit
 
-# Command to list directories/files in HDFS location
-hadoop_command = "hadoop fs -ls /path/to/hdfs/location"
+# Initialize Spark Session
+spark = SparkSession.builder.appName('example').getOrCreate()
 
-# Run the command
-process = subprocess.Popen(hadoop_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+# Sample DataFrame
+data = [
+    ('user1', 'solution1', '2023-01-01', '2023-06-01'),
+    ('user2', 'solution2', None, '2023-03-01'),
+    ('user3', 'solution3', '2023-05-01', None),
+    # Add your actual data here
+]
 
-# Capture the command's output and error
-(output, error) = process.communicate()
+columns = ['user_id', 'solution_name', 'open_date', 'close_date']
 
-# Wait for the command to complete
-process_status = process.wait()
+df = spark.createDataFrame(data, schema=columns)
 
-if process_status == 0:
-    # Command was successful, process the output
-    output_lines = output.decode().strip().split('\n')
+# Convert string dates to DateType
+df = df.withColumn('open_date', to_date(col('open_date')))
+df = df.withColumn('close_date', to_date(col('close_date')))
 
-    # List to hold the file/directory paths
-    paths = []
+# Define the function to calculate the label
+def calculate_label(open_date, close_date, reference_date):
+    if open_date is not None and open_date <= reference_date + datetime.timedelta(days=210):
+        return 1
+    elif close_date is not None and close_date < reference_date:
+        return 0
+    else:
+        return None
 
-    for line in output_lines:
-        # Typically, the file path is the last column in the output
-        # Adjust the indexing if your output format is different
-        parts = line.split()
-        if len(parts) > 0:  # Making sure it's not an empty line
-            path = parts[-1]  # The file/directory path is usually the last part
-            paths.append(path)
+# Register the UDF
+calculate_label_udf = udf(calculate_label, IntegerType())
 
-    print("HDFS Paths:\n", paths)
-else:
-    # There was an error
-    print("Command Error:\n", error.decode())
+# Apply the function to each row
+reference_date = datetime.date(2023, 1, 1)  # Replace with your actual reference date
+df = df.withColumn(
+    'label',
+    calculate_label_udf(
+        col('open_date'),
+        col('close_date'),
+        lit(reference_date)
+    )
+)
+
+# Show the result
+df.show()
+
