@@ -1,36 +1,4 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
-
-# Initialize Spark Session
-spark = SparkSession.builder.appName('balanced_sample').getOrCreate()
-
-# Assume 'df' is your DataFrame and it has a column named 'label'
-
-# Count the instances of each label
-label_counts = df.groupBy('label').count().collect()
-
-# Find the minimum count
-min_count = min(count['count'] for count in label_counts)
-
-# Initialize an empty DataFrame to union the results
-balanced_df = spark.createDataFrame([], df.schema)
-
-for label_count in label_counts:
-    label = label_count['label']
-    count = label_count['count']
-    fraction = min_count / count
-    
-    # Sample from each group
-    sampled_df = df.filter(col('label') == label).sample(withReplacement=False, fraction=fraction, seed=42)
-    
-    # Union the results
-    balanced_df = balanced_df.unionAll(sampled_df)
-
-# Show the result
-balanced_df.show()
-
-# Optional: Stop the SparkSession
-spark.stop()
+The identified limitation of the model is its inability to process data in real-time, as it is designed to handle batch data only. However, given that the NBS (National Bureau of Statistics) operates on a monthly schedule and there is currently no strategy in place to transition to real-time data streaming, this limitation is not immediately impactful. Nonetheless, it's worth considering that the landscape of data processing and analytics is evolving, and the ability to process streaming data might become a valuable asset in the future. 
 
 
 
