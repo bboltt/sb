@@ -1,24 +1,36 @@
 from pyspark.sql import SparkSession
-from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from pyspark.sql.functions import col
 
 # Initialize Spark Session
-spark = SparkSession.builder.appName('compute_auc').getOrCreate()
+spark = SparkSession.builder.appName('balanced_sample').getOrCreate()
 
-# Assume 'df' is your DataFrame and it has 'prediction' and 'ground_truth_label' columns
+# Assume 'df' is your DataFrame and it has a column named 'label'
 
-# Prepare your DataFrame
-# Ensure that 'prediction' column contains raw prediction scores and 'ground_truth_label' contains true labels.
+# Count the instances of each label
+label_counts = df.groupBy('label').count().collect()
 
-# Create an instance of BinaryClassificationEvaluator
-evaluator = BinaryClassificationEvaluator(rawPredictionCol="prediction", labelCol="ground_truth_label", metricName="areaUnderROC")
+# Find the minimum count
+min_count = min(count['count'] for count in label_counts)
 
-# Compute AUC
-auc = evaluator.evaluate(df)
+# Initialize an empty DataFrame to union the results
+balanced_df = spark.createDataFrame([], df.schema)
 
-# Print the AUC
-print(f"The AUC is: {auc}")
+for label_count in label_counts:
+    label = label_count['label']
+    count = label_count['count']
+    fraction = min_count / count
+    
+    # Sample from each group
+    sampled_df = df.filter(col('label') == label).sample(withReplacement=False, fraction=fraction, seed=42)
+    
+    # Union the results
+    balanced_df = balanced_df.unionAll(sampled_df)
+
+# Show the result
+balanced_df.show()
 
 # Optional: Stop the SparkSession
 spark.stop()
+
 
 
