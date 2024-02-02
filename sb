@@ -1,4 +1,1 @@
-The identified limitation of the model is its inability to process data in real-time, as it is designed to handle batch data only. However, given that the NBS (National Bureau of Statistics) operates on a monthly schedule and there is currently no strategy in place to transition to real-time data streaming, this limitation is not immediately impactful. Nonetheless, it's worth considering that the landscape of data processing and analytics is evolving, and the ability to process streaming data might become a valuable asset in the future. 
-
-
-
+Currently, we are utilizing all available features in NBS 1.0. However, as we transition to NBS 2.0, which is based on deep learning, the model's robustness and performance are less likely to be negatively impacted by a large number of features. Deep learning models, particularly those with well-designed architectures, are capable of handling high-dimensional data and can extract complex patterns and interactions between features. This capability is especially beneficial in contexts where each additional feature can potentially add informative value to the model.
