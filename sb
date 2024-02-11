@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
-from scipy.stats import hellinger
+
+# Function to calculate Hellinger distance
+def hellinger_distance(p, q):
+    return np.sqrt(np.sum((np.sqrt(p) - np.sqrt(q)) ** 2)) / np.sqrt(2)
 
 # Assuming df1 and df2 are your DataFrames
 # Initialize an empty list to store the feature names and their Hellinger distances
@@ -9,24 +12,15 @@ hellinger_distances = []
 # Iterate over each feature column to calculate the Hellinger distance
 for feature in df1.columns:
     # Normalize the data into histograms (probabilities distributions) for each feature
-    # The range parameter ensures that the bins cover the same range of values for both datasets
     range_min = min(df1[feature].min(), df2[feature].min())
     range_max = max(df1[feature].max(), df2[feature].max())
-    bin_edges = np.linspace(range_min, range_max, num=50) # Adjust num=50 based on your data distribution
+    bin_edges = np.linspace(range_min, range_max, num=50)  # Adjust num=50 based on your data distribution
     
     prob1, _ = np.histogram(df1[feature], bins=bin_edges, density=True)
     prob2, _ = np.histogram(df2[feature], bins=bin_edges, density=True)
     
-    # Ensure probabilities are non-negative (required for Hellinger distance calculation)
-    prob1 = np.maximum(prob1, 0)
-    prob2 = np.maximum(prob2, 0)
-    
-    # Calculate the square root of the probabilities
-    sqrt_prob1 = np.sqrt(prob1)
-    sqrt_prob2 = np.sqrt(prob2)
-    
     # Calculate the Hellinger distance
-    hellinger_dist = np.sqrt(np.sum((sqrt_prob1 - sqrt_prob2) ** 2)) / np.sqrt(2)
+    hellinger_dist = hellinger_distance(prob1, prob2)
     
     # Append the feature name and its Hellinger distance to the list
     hellinger_distances.append((feature, hellinger_dist))
@@ -36,3 +30,4 @@ df_hellinger = pd.DataFrame(hellinger_distances, columns=['Feature', 'Hellinger 
 
 # Display the result
 print(df_hellinger)
+
