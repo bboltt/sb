@@ -1,40 +1,38 @@
-Training a model in SageMaker using TensorFlow involves several steps and considerations. Based on our previous dialogue, here are some challenges and key points to consider:
+import numpy as np
+import pandas as pd
+from scipy.stats import hellinger
 
-1. **SageMaker Environment Setup:**
-   - Understanding and setting up the SageMaker environment, including roles, permissions, and S3 buckets, can be complex. You encountered issues related to permissions (`GetBucketLocation` operation) which are critical for SageMaker to access data in S3.
+# Assuming df1 and df2 are your DataFrames
+# Initialize an empty list to store the feature names and their Hellinger distances
+hellinger_distances = []
 
-2. **Script Mode vs Framework Mode:**
-   - SageMaker supports both Script Mode and Framework Mode for TensorFlow. It's important to understand the differences and when to use each. Script Mode offers more flexibility and is more akin to writing standard TensorFlow scripts, but it also requires more setup, such as handling data input and output.
+# Iterate over each feature column to calculate the Hellinger distance
+for feature in df1.columns:
+    # Normalize the data into histograms (probabilities distributions) for each feature
+    # The range parameter ensures that the bins cover the same range of values for both datasets
+    range_min = min(df1[feature].min(), df2[feature].min())
+    range_max = max(df1[feature].max(), df2[feature].max())
+    bin_edges = np.linspace(range_min, range_max, num=50) # Adjust num=50 based on your data distribution
+    
+    prob1, _ = np.histogram(df1[feature], bins=bin_edges, density=True)
+    prob2, _ = np.histogram(df2[feature], bins=bin_edges, density=True)
+    
+    # Ensure probabilities are non-negative (required for Hellinger distance calculation)
+    prob1 = np.maximum(prob1, 0)
+    prob2 = np.maximum(prob2, 0)
+    
+    # Calculate the square root of the probabilities
+    sqrt_prob1 = np.sqrt(prob1)
+    sqrt_prob2 = np.sqrt(prob2)
+    
+    # Calculate the Hellinger distance
+    hellinger_dist = np.sqrt(np.sum((sqrt_prob1 - sqrt_prob2) ** 2)) / np.sqrt(2)
+    
+    # Append the feature name and its Hellinger distance to the list
+    hellinger_distances.append((feature, hellinger_dist))
 
-3. **Hyperparameters and Training Script:**
-   - Properly passing hyperparameters (like `train_steps`, `hidden_units`) and ensuring they are correctly parsed and used in the training script is crucial. Mistakes here can lead to training jobs not running as expected.
-   - Understanding how SageMaker passes these hyperparameters to the training script (through command-line arguments) is important.
+# Convert the list to a DataFrame
+df_hellinger = pd.DataFrame(hellinger_distances, columns=['Feature', 'Hellinger Distance'])
 
-4. **Data Input and Output:**
-   - Managing data input and output with SageMaker's channels and ensuring that the training script correctly reads from and writes to these locations can be challenging.
-   - There were issues related to the SageMaker's way of handling model output paths and ensuring that the model artifacts are saved in the correct location (`/opt/ml/model/`).
-
-5. **Dependency Management:**
-   - Ensuring that all necessary packages and dependencies are installed in the training environment. For instance, you faced issues where certain Python packages like `fsspec` and `s3fs` were not installed, leading to errors.
-
-6. **Debugging and Logging:**
-   - Debugging issues can be challenging in a cloud environment. You need to rely on CloudWatch logs to understand what went wrong in the training job.
-   - SageMaker's logging system is robust, but filtering through logs to find the relevant information requires some understanding of how SageMaker operates.
-
-7. **Model Artifacts and Serving:**
-   - Understanding how and where SageMaker saves model artifacts and how to properly configure the model so it can be served through SageMaker Endpoints.
-   - You encountered issues where SageMaker did not save the model artifacts as expected, and the importance of saving the model in the TensorFlow SavedModel format for compatibility with TensorFlow Serving.
-
-8. **Version Compatibility and Framework Updates:**
-   - Managing compatibility between different versions of TensorFlow and ensuring that the code is compatible with the version used in the SageMaker environment.
-   - TensorFlow's API has changed significantly between versions (for example, from TensorFlow 1.x to 2.x), and ensuring compatibility can sometimes be challenging.
-
-9. **Model Deployment:**
-   - Understanding the process of deploying a model for inference, including setting up endpoints and configuring the inference code.
-   - Deciding between real-time inference endpoints and batch transform jobs based on the use case.
-
-10. **Model Registry and Packaging:**
-    - Understanding and utilizing SageMaker's Model Registry for versioning and managing deployed models.
-    - You encountered issues related to the SageMaker Model Package and Model Package Group, which are part of the model governance and lifecycle management in SageMaker.
-
-While SageMaker provides a managed, scalable, and integrated environment for machine learning, navigating through these aspects requires a good grasp of both SageMaker's and TensorFlow's paradigms and best practices.
+# Display the result
+print(df_hellinger)
