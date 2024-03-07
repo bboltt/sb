@@ -1,33 +1,30 @@
 import numpy as np
-import pandas as pd
-
-# Function to calculate Hellinger distance
-def hellinger_distance(p, q):
-    return np.sqrt(np.sum((np.sqrt(p) - np.sqrt(q)) ** 2)) / np.sqrt(2)
-
-# Assuming df1 and df2 are your DataFrames
-# Initialize an empty list to store the feature names and their Hellinger distances
-hellinger_distances = []
-
-# Iterate over each feature column to calculate the Hellinger distance
-for feature in df1.columns:
-    # Normalize the data into histograms (probabilities distributions) for each feature
-    range_min = min(df1[feature].min(), df2[feature].min())
-    range_max = max(df1[feature].max(), df2[feature].max())
-    bin_edges = np.linspace(range_min, range_max, num=50)  # Adjust num=50 based on your data distribution
+def model_prediction_wrapper(X_array):
+    # Assuming `feature_names` is a list of your model's features in the correct order
+    # Convert X_array back into the dictionary format expected by the DeepFM model
+    X_dict = {feature: X_array[:, i] for i, feature in enumerate(feature_names)}
     
-    prob1, _ = np.histogram(df1[feature], bins=bin_edges, density=True)
-    prob2, _ = np.histogram(df2[feature], bins=bin_edges, density=True)
-    
-    # Calculate the Hellinger distance
-    hellinger_dist = hellinger_distance(prob1, prob2)
-    
-    # Append the feature name and its Hellinger distance to the list
-    hellinger_distances.append((feature, hellinger_dist))
+    # Perform prediction using the DeepFM model
+    predictions = model.predict(X_dict)
+    return predictions
 
-# Convert the list to a DataFrame
-df_hellinger = pd.DataFrame(hellinger_distances, columns=['Feature', 'Hellinger Distance'])
 
-# Display the result
-print(df_hellinger)
+import shap
 
+# Convert X_test dictionary to DataFrame for easier handling
+X_test_df = pd.DataFrame(X_test)
+
+# Select a background sample or use the entire dataset if computationally feasible
+background = X_test_df.iloc[:100].values  # Example: using the first 100 samples as background
+
+# Initialize the explainer
+# For models using TensorFlow backend, GradientExplainer can offer more direct integration and better performance
+explainer = shap.GradientExplainer(model_prediction_wrapper, background)
+
+# Compute SHAP values for a sample of the test set
+# Converting DataFrame to NumPy array for compatibility
+X_sample = X_test_df.iloc[100:200].values  # Example: explaining next 100 samples
+shap_values = explainer.shap_values(X_sample)
+
+# Visualization: summarize the effects of all features
+shap.summary_plot(shap_values, X_sample, feature_names=feature_names)
