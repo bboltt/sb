@@ -1,95 +1,17 @@
-[User A] -----\
-              \
-[User B] ------ > [Calculate Similarity] --> [Similarity Scores]
-              /
-[User C] -----/
-
-
-Raw Data (User Info)
-  |
-  v
-[One-Hot Encoding] [Normalization] [Standardization]
-  |                     |                  |
-  v                     v                  v
-[Feature Vector] ----------------------> [Ready for Similarity Calculation]
+Interaction Matrix:
+               | HasSavingAccount | IsMarried | ... | WealthAccount |
+               -------------------------------------------------------
+        User1 |        1          |     0     | ... |       1       |
+        User2 |        1          |     1     | ... |       0       |
+        User3 |        0          |     1     | ... |       0       |
+         ...  |       ...         |    ...    | ... |      ...      |
 
 
 
+         | HasSavingAccount | IsMarried | ... | WealthAccount |     | LF1 | LF2 | LF3 | ... |     | LF1 | LF2 | LF3 | ...
+         -----------------------------------------------------------------------------------------------   --------------------
+ User1   |        1          |     0     | ... |       1       |     | 0.5 | 0.2 | 0.3 | ... |     | 0.4 | 0.7 | 0.1 | ...
+ User2   |        1          |     1     | ... |       0       | --> | 0.6 | 0.1 | 0.4 | ... |  +  | 0.5 | 0.2 | 0.3 | ...
+ User3   |        0          |     1     | ... |       0       |     | 0.2 | 0.5 | 0.5 | ... |     | 0.6 | 0.4 | 0.2 | ...
+ ...     |       ...         |    ...    | ... |      ...      |     | ... | ... | ... | ... |     | ... | ... | ... | ...
 
-      /-- [Wealth Account Holder] --\
-     /                                \
-[Calculate]                          [Calculate]
-   Similarity                        Similarity
-     /                                \
-    /                                  \
-[Non-Wealth]                        [Non-Wealth]
- Account Holder                     Account Holder
-
-
-[Similarity Scores]
-     |
-     v
-[Ranking & Filtering]
-     |
-     v
-[Top Potential Candidates]
-     |
-     v
-[Predicted to be Prospect for Wealth Account]
-
-
-                    [Model]
-                      |
-                      v
-                   [Predict]
-                      |
-          +-----------+-----------+
-          |                       |
-          v                       v
-      [Evaluate]               [Collect Feedback]
-          |                       |
-          +-----------+-----------+
-                      |
-                      v
-                 [Refine Model]
-                      |
-                      v
-              [Iterate Over Process]
-
-
-
-
-                 Wealth Users
-              /       |       \
-             /        |        \
-            /         |         \
-      [User W1]  [User W2]  ... [User Wn]
-         |            |              |
-         v            v              v
-    [Calculate    [Calculate     [Calculate
-    Similarity]   Similarity]    Similarity]
-         |            |              |
-         v            v              v
-    {Score with   {Score with    {Score with
-    Non-Wealth}   Non-Wealth}    Non-Wealth}
-         |            |              |
-         \            |             /
-          \           |            /
-           \          |           /
-            \         |          /
-             \        |         /
-              \       |        /
-               \      |       /
-                ----------------
-                     |
-                     v
-         [Aggregate Similarity Scores]
-                     |
-                     v
-          [Rank Non-Wealth Users by Score]
-                     |
-                     v
-          [Select Top Scoring Non-Wealth Users]
-                     |
-                     v
-         [Top Potential Wealth Account Candidates]
