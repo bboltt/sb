@@ -55,3 +55,41 @@ Raw Data (User Info)
                       |
                       v
               [Iterate Over Process]
+
+
+
+
+                 Wealth Users
+              /       |       \
+             /        |        \
+            /         |         \
+      [User W1]  [User W2]  ... [User Wn]
+         |            |              |
+         v            v              v
+    [Calculate    [Calculate     [Calculate
+    Similarity]   Similarity]    Similarity]
+         |            |              |
+         v            v              v
+    {Score with   {Score with    {Score with
+    Non-Wealth}   Non-Wealth}    Non-Wealth}
+         |            |              |
+         \            |             /
+          \           |            /
+           \          |           /
+            \         |          /
+             \        |         /
+              \       |        /
+               \      |       /
+                ----------------
+                     |
+                     v
+         [Aggregate Similarity Scores]
+                     |
+                     v
+          [Rank Non-Wealth Users by Score]
+                     |
+                     v
+          [Select Top Scoring Non-Wealth Users]
+                     |
+                     v
+         [Top Potential Wealth Account Candidates]
