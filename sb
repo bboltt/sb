@@ -1,30 +1,57 @@
-import numpy as np
-def model_prediction_wrapper(X_array):
-    # Assuming `feature_names` is a list of your model's features in the correct order
-    # Convert X_array back into the dictionary format expected by the DeepFM model
-    X_dict = {feature: X_array[:, i] for i, feature in enumerate(feature_names)}
-    
-    # Perform prediction using the DeepFM model
-    predictions = model.predict(X_dict)
-    return predictions
+[User A] -----\
+              \
+[User B] ------ > [Calculate Similarity] --> [Similarity Scores]
+              /
+[User C] -----/
 
 
-import shap
+Raw Data (User Info)
+  |
+  v
+[One-Hot Encoding] [Normalization] [Standardization]
+  |                     |                  |
+  v                     v                  v
+[Feature Vector] ----------------------> [Ready for Similarity Calculation]
 
-# Convert X_test dictionary to DataFrame for easier handling
-X_test_df = pd.DataFrame(X_test)
 
-# Select a background sample or use the entire dataset if computationally feasible
-background = X_test_df.iloc[:100].values  # Example: using the first 100 samples as background
 
-# Initialize the explainer
-# For models using TensorFlow backend, GradientExplainer can offer more direct integration and better performance
-explainer = shap.GradientExplainer(model_prediction_wrapper, background)
 
-# Compute SHAP values for a sample of the test set
-# Converting DataFrame to NumPy array for compatibility
-X_sample = X_test_df.iloc[100:200].values  # Example: explaining next 100 samples
-shap_values = explainer.shap_values(X_sample)
+      /-- [Wealth Account Holder] --\
+     /                                \
+[Calculate]                          [Calculate]
+   Similarity                        Similarity
+     /                                \
+    /                                  \
+[Non-Wealth]                        [Non-Wealth]
+ Account Holder                     Account Holder
 
-# Visualization: summarize the effects of all features
-shap.summary_plot(shap_values, X_sample, feature_names=feature_names)
+
+[Similarity Scores]
+     |
+     v
+[Ranking & Filtering]
+     |
+     v
+[Top Potential Candidates]
+     |
+     v
+[Predicted to be Prospect for Wealth Account]
+
+
+                    [Model]
+                      |
+                      v
+                   [Predict]
+                      |
+          +-----------+-----------+
+          |                       |
+          v                       v
+      [Evaluate]               [Collect Feedback]
+          |                       |
+          +-----------+-----------+
+                      |
+                      v
+                 [Refine Model]
+                      |
+                      v
+              [Iterate Over Process]
