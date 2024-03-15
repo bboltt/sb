@@ -1,9 +1,21 @@
-from pyspark.sql.functions import col, when, count, avg
+from pyspark.sql.types import StringType, NumericType
 
-# Example: Average of a numeric feature grouped by pwm_relat
-df.groupBy("pwm_relat").agg(avg("some_numeric_feature")).show()
+# Get the DataFrame schema
+schema = df.schema
 
-# For categorical features, you can count occurrences by pwm_relat
-df.groupBy("some_categorical_feature", "pwm_relat").count().show()
+# Initialize lists to hold names of numeric and categorical features
+numeric_features = []
+categorical_features = []
+
+# Iterate over the schema to classify columns by their data type
+for field in schema:
+    if isinstance(field.dataType, NumericType):
+        numeric_features.append(field.name)
+    elif isinstance(field.dataType, StringType):
+        categorical_features.append(field.name)
+
+# Now you have lists of numeric and categorical features
+print("Numeric Features:", numeric_features)
+print("Categorical Features:", categorical_features)
 
 
