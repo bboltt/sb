@@ -1,17 +1,9 @@
-Interaction Matrix:
-               | HasSavingAccount | IsMarried | ... | WealthAccount |
-               -------------------------------------------------------
-        User1 |        1          |     0     | ... |       1       |
-        User2 |        1          |     1     | ... |       0       |
-        User3 |        0          |     1     | ... |       0       |
-         ...  |       ...         |    ...    | ... |      ...      |
+from pyspark.sql.functions import col, when, count, avg
 
+# Example: Average of a numeric feature grouped by pwm_relat
+df.groupBy("pwm_relat").agg(avg("some_numeric_feature")).show()
 
+# For categorical features, you can count occurrences by pwm_relat
+df.groupBy("some_categorical_feature", "pwm_relat").count().show()
 
-         | HasSavingAccount | IsMarried | ... | WealthAccount |     | LF1 | LF2 | LF3 | ... |     | LF1 | LF2 | LF3 | ...
-         -----------------------------------------------------------------------------------------------   --------------------
- User1   |        1          |     0     | ... |       1       |     | 0.5 | 0.2 | 0.3 | ... |     | 0.4 | 0.7 | 0.1 | ...
- User2   |        1          |     1     | ... |       0       | --> | 0.6 | 0.1 | 0.4 | ... |  +  | 0.5 | 0.2 | 0.3 | ...
- User3   |        0          |     1     | ... |       0       |     | 0.2 | 0.5 | 0.5 | ... |     | 0.6 | 0.4 | 0.2 | ...
- ...     |       ...         |    ...    | ... |      ...      |     | ... | ... | ... | ... |     | ... | ... | ... | ...
 
