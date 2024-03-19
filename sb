@@ -1,21 +1,11 @@
-from pyspark.sql.types import StringType, NumericType
-
-# Get the DataFrame schema
-schema = df.schema
-
-# Initialize lists to hold names of numeric and categorical features
-numeric_features = []
-categorical_features = []
-
-# Iterate over the schema to classify columns by their data type
-for field in schema:
-    if isinstance(field.dataType, NumericType):
-        numeric_features.append(field.name)
-    elif isinstance(field.dataType, StringType):
-        categorical_features.append(field.name)
-
-# Now you have lists of numeric and categorical features
-print("Numeric Features:", numeric_features)
-print("Categorical Features:", categorical_features)
-
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::fraud-sagemaker-ds-shared20231002133932905200000001/*"
+        }
+    ]
+}
 
