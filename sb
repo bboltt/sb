@@ -1,34 +1,63 @@
-WITH OrderedData AS (
-    SELECT
-        hh_id_in_wh,
-        pwm_relat,
-        business_date,
-        LAG(pwm_relat) OVER (PARTITION BY hh_id_in_wh ORDER BY business_date) AS prev_pwm_relat,
-        LAG(business_date) OVER (PARTITION BY hh_id_in_wh ORDER BY business_date) AS prev_business_date
-    FROM your_table
-),
-SwitchPoints AS (
-    SELECT
-        hh_id_in_wh,
-        pwm_relat,
-        business_date,
-        prev_pwm_relat,
-        prev_business_date
-    FROM OrderedData
-    WHERE pwm_relat = '1' AND prev_pwm_relat = '0'
-),
-ValidSwitches AS (
-    SELECT DISTINCT
-        sp.hh_id_in_wh,
-        FIRST_VALUE(sp.business_date) OVER (PARTITION BY sp.hh_id_in_wh ORDER BY sp.business_date) AS switch_date
-    FROM SwitchPoints sp
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM OrderedData od
-        WHERE od.hh_id_in_wh = sp.hh_id_in_wh
-        AND od.pwm_relat = '1'
-        AND od.business_date BETWEEN sp.prev_business_date - INTERVAL '6 months' AND sp.prev_business_date
-    )
-)
-SELECT *
-FROM ValidSwitches;
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from sklearn.preprocessing import StandardScaler
+
+# Data Preprocessing Functions
+def preprocess_dates(df, date_columns):
+    for col in date_columns:
+        df[col] = pd.to_datetime(df[col])
+    return df
+
+def calculate_longevity(df, open_date_col, end_date=datetime.now()):
+    df['account_longevity'] = (end_date - df[open_date_col]).dt.days
+    return df
+
+# Feature Engineering Functions
+def calculate_balance_statistics(df, balance_col):
+    df[f'{balance_col}_mean'] = df.groupby('hh_id_in_wh')[balance_col].transform('mean')
+    df[f'{balance_col}_max'] = df.groupby('hh_id_in_wh')[balance_col].transform('max')
+    df[f'{balance_col}_min'] = df.groupby('hh_id_in_wh')[balance_col].transform('min')
+    return df
+
+def product_diversity(df, product_col):
+    df['product_diversity'] = df.groupby('hh_id_in_wh')[product_col].transform('nunique')
+    return df
+
+# Example of additional feature functions...
+
+# Main Feature Engineering Class
+class FeatureEngineeringPipeline:
+    def __init__(self, df):
+        self.df = df
+    
+    def preprocess(self):
+        date_cols = ['open_date', 'close_date', 'business_date']
+        self.df = preprocess_dates(self.df, date_cols)
+        self.df = calculate_longevity(self.df, 'open_date')
+        return self
+    
+    def add_balance_features(self):
+        self.df = calculate_balance_statistics(self.df, 'curr_bal_amt')
+        self.df = calculate_balance_statistics(self.df, 'ledger_bal_amt')
+        return self
+    
+    def add_product_features(self):
+        self.df = product_diversity(self.df, 'prd_code')
+        # Add more feature engineering steps as methods
+        return self
+    
+    def execute(self):
+        self.preprocess()
+        self.add_balance_features()
+        self.add_product_features()
+        # Include calls to other feature engineering methods here
+        return self.df
+
+# Usage
+df = pd.read_csv('path/to/your/data.csv')  # Assuming data is loaded into a DataFrame
+pipeline = FeatureEngineeringPipeline(df)
+df_enriched = pipeline.execute()
+
+# Now, df_enriched contains the original data along with the new features.
+
