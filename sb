@@ -1,63 +1,63 @@
 import pandas as pd
-import numpy as np
-from datetime import datetime
+from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
+from feature_engineering_pipeline import FeatureEngineeringPipeline
 
-# Data Preprocessing Functions
-def preprocess_dates(df, date_columns):
-    for col in date_columns:
-        df[col] = pd.to_datetime(df[col])
-    return df
-
-def calculate_longevity(df, open_date_col, end_date=datetime.now()):
-    df['account_longevity'] = (end_date - df[open_date_col]).dt.days
-    return df
-
-# Feature Engineering Functions
-def calculate_balance_statistics(df, balance_col):
-    df[f'{balance_col}_mean'] = df.groupby('hh_id_in_wh')[balance_col].transform('mean')
-    df[f'{balance_col}_max'] = df.groupby('hh_id_in_wh')[balance_col].transform('max')
-    df[f'{balance_col}_min'] = df.groupby('hh_id_in_wh')[balance_col].transform('min')
-    return df
-
-def product_diversity(df, product_col):
-    df['product_diversity'] = df.groupby('hh_id_in_wh')[product_col].transform('nunique')
-    return df
-
-# Example of additional feature functions...
-
-# Main Feature Engineering Class
-class FeatureEngineeringPipeline:
-    def __init__(self, df):
-        self.df = df
+def calculate_similarity(df, features):
+    # Normalize features
+    scaler = StandardScaler()
+    df_normalized = df.copy()
+    df_normalized[features] = scaler.fit_transform(df[features])
     
-    def preprocess(self):
-        date_cols = ['open_date', 'close_date', 'business_date']
-        self.df = preprocess_dates(self.df, date_cols)
-        self.df = calculate_longevity(self.df, 'open_date')
-        return self
+    # Split the data into private wealth and non-private wealth users
+    pwm_users = df_normalized[df_normalized['seg_code'] == 'PWM']
+    non_pwm_users = df_normalized[df_normalized['seg_code'] != 'PWM']
     
-    def add_balance_features(self):
-        self.df = calculate_balance_statistics(self.df, 'curr_bal_amt')
-        self.df = calculate_balance_statistics(self.df, 'ledger_bal_amt')
-        return self
+    # Calculate cosine similarity
+    similarities = cosine_similarity(non_pwm_users[features], pwm_users[features])
     
-    def add_product_features(self):
-        self.df = product_diversity(self.df, 'prd_code')
-        # Add more feature engineering steps as methods
-        return self
+    # For each non-private wealth user, find the max similarity score with any private wealth user
+    non_pwm_users['max_similarity'] = similarities.max(axis=1)
     
-    def execute(self):
-        self.preprocess()
-        self.add_balance_features()
-        self.add_product_features()
-        # Include calls to other feature engineering methods here
-        return self.df
+    return non_pwm_users[['hh_id_in_wh', 'max_similarity']]
 
-# Usage
-df = pd.read_csv('path/to/your/data.csv')  # Assuming data is loaded into a DataFrame
+def evaluate_prospects(similarity_df, validswitches_df):
+    # Merge to see which ones were correctly identified as prospects
+    evaluation_df = pd.merge(similarity_df, validswitches_df, on='hh_id_in_wh', how='left')
+    evaluation_df['correctly_identified'] = evaluation_df['switch_date'].notna()
+    
+    # Summary statistics
+    correct_prospects = evaluation_df['correctly_identified'].sum()
+    total_prospects = evaluation_df['correctly_identified'].count()
+    
+    print(f"Correctly Identified Prospects: {correct_prospects}")
+    print(f"Total Identified Prospects: {total_prospects}")
+    print(f"Accuracy: {correct_prospects / total_prospects:.2%}")
+    
+    return evaluation_df
+
+
+
+
+import pandas as pd
+from feature_engineering_pipeline import FeatureEngineeringPipeline
+from model_pipeline import calculate_similarity, evaluate_prospects
+
+# Assuming the data is loaded
+df = pd.read_csv('path/to/your/data.csv')
+validswitches_df = pd.read_csv('path/to/your/validswitches.csv')
+
+# Feature Engineering
 pipeline = FeatureEngineeringPipeline(df)
 df_enriched = pipeline.execute()
 
-# Now, df_enriched contains the original data along with the new features.
+# Define your feature list
+features = ['feature1', 'feature2', 'account_longevity', 'total_balance', 'product_diversity']  # Update this list
+
+# Calculate Similarity
+similarity_df = calculate_similarity(df_enriched, features)
+
+# Evaluate
+evaluation_df = evaluate_prospects(similarity_df, validswitches_df)
+
 
