@@ -1,68 +1,47 @@
-def load_relevant_pwm_data(spark):
-    """
-    Loads the latest 6 months of data for `hh_id_in_wh` from the `dm_r3.pwm_mstr_dtl_daily` table,
-    filtering to include only those identifiers marked as 'C. HIGH NET WORTH' in the
-    `sb_dsp.pwm_customer_segmentation_final` table for a specific business date. It further refines
-    the data to include records for `hh_id_in_wh` that have always been non-PWM or have switched
-    to PWM within the last 6 months.
+from pyspark.sql import functions as F
+from pyspark.sql.functions import datediff, current_date, expr
 
-    Args:
-        spark (SparkSession): An active SparkSession instance used to execute SQL queries.
-
-    Returns:
-        pandas.DataFrame: A Pandas DataFrame containing the filtered dataset based on the
-        specified criteria.
-
-    Note:
-        The function executes a SQL query that incorporates a subquery for filtering based on
-        the `sb_dsp.pwm_customer_segmentation_final` table. It assumes that the SparkSession has
-        Hive support enabled for querying Hive tables directly.
-
-    Example:
-        >>> spark = SparkSession.builder.appName("YourAppName").enableHiveSupport().getOrCreate()
-        >>> df = load_relevant_pwm_data(spark)
-        >>> print(df.head())
-    """
-    query = """
-    WITH LatestRecords AS (
-        SELECT 
-            hh_id_in_wh, 
-            MAX(business_date) as latest_date
-        FROM 
-            dm_r3.pwm_mstr_dtl_daily
-        GROUP BY 
-            hh_id_in_wh
-    ), RelevantHHIDs AS (
-        SELECT DISTINCT
-            d.hh_id_in_wh
-        FROM 
-            dm_r3.pwm_mstr_dtl_daily d
-        JOIN 
-            LatestRecords lr ON d.hh_id_in_wh = lr.hh_id_in_wh
-        WHERE 
-            d.hh_id_in_wh IN (
-                SELECT DISTINCT hh_id_in_wh 
-                FROM sb_dsp.pwm_customer_segmentation_final 
-                WHERE new_wsegmt = 'C. HIGH NET WORTH' 
-                AND business_date = '2023-10-31'
-            )
-            AND (
-                (d.seg_code != 'PWM' AND d.business_date > ADD_MONTHS(lr.latest_date, -6))
-                OR 
-                (d.seg_code = 'PWM' AND d.business_date <= lr.latest_date AND d.business_date > ADD_MONTHS(lr.latest_date, -6))
-            )
-    )
-    SELECT 
-        d.*
-    FROM 
-        dm_r3.pwm_mstr_dtl_daily d
-    JOIN 
-        RelevantHHIDs r ON d.hh_id_in_wh = r.hh_id_in_wh
-    WHERE 
-        d.business_date > (SELECT ADD_MONTHS(MAX(business_date), -6) FROM dm_r3.pwm_mstr_dtl_daily)
-    """
-    spark_df = spark.sql(query)
-    pandas_df = spark_df.toPandas()
-    return pandas_df
+class FeatureEngineeringPipelineSpark:
+    def __init__(self, spark_df):
+        self.df = spark_df
+    
+    def preprocess(self):
+        # Convert dates from string to date type if necessary
+        self.df = self.df.withColumn("business_date", F.col("business_date").cast("date"))
+        self.df = self.df.withColumn("open_date", F.col("open_date").cast("date"))
+        self.df = self.df.withColumn("close_date", F.col("close_date").cast("date"))
+        return self
+    
+    def add_account_longevity(self):
+        # Assuming `open_date` is the account opening date
+        self.df = self.df.withColumn("account_longevity", datediff(current_date(), F.col("open_date")))
+        return self
+    
+    def add_balance_features(self):
+        # Calculate mean, max, and min balances (example with curr_bal_amt)
+        self.df = self.df.withColumn("curr_bal_amt", F.col("curr_bal_amt").cast("float"))  # Ensure column is float type
+        balance_stats = self.df.groupBy("hh_id_in_wh").agg(
+            F.mean("curr_bal_amt").alias("curr_bal_amt_mean"),
+            F.max("curr_bal_amt").alias("curr_bal_amt_max"),
+            F.min("curr_bal_amt").alias("curr_bal_amt_min")
+        )
+        self.df = self.df.join(balance_stats, "hh_id_in_wh", "left")
+        return self
+    
+    def add_product_diversity(self):
+        # Count distinct products used by hh_id_in_wh
+        product_diversity = self.df.groupBy("hh_id_in_wh").agg(
+            F.countDistinct("prd_code").alias("product_diversity")
+        )
+        self.df = self.df.join(product_diversity, "hh_id_in_wh", "left")
+        return self
+    
+    def execute(self):
+        self.preprocess()
+        self.add_account_longevity()
+        self.add_balance_features()
+        self.add_product_diversity()
+        # Add more feature engineering methods as needed
+        return self.df
 
 
