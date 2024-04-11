@@ -45,3 +45,82 @@ class FeatureEngineeringPipelineSpark:
         return self.df
 
 
+
+
+def load_pwm_clients(spark, reference_date='2024-04-08'):
+    """
+    Loads the IDs of clients who are currently private wealth management (PWM) clients as of a given date.
+
+    Args:
+        spark (SparkSession): The Spark session object.
+        reference_date (str): The date to filter PWM clients.
+
+    Returns:
+        DataFrame: A DataFrame containing distinct hh_id_in_wh for PWM clients.
+    """
+    query = f"""
+    SELECT DISTINCT hh_id_in_wh 
+    FROM dm_r3.pwm_mstr_dtl_daily 
+    WHERE business_date = '{reference_date}' AND seg_code = 'PWM'
+    """
+    return spark.sql(query)
+
+
+
+
+
+from pyspark.sql.functions import col, stddev, mean
+
+def normalize_features(df, features):
+    """
+    Normalize the specified features of a DataFrame to have zero mean and unit variance.
+
+    Args:
+        df (DataFrame): The Spark DataFrame to be normalized.
+        features (list of str): List of column names to normalize.
+
+    Returns:
+        DataFrame: The DataFrame with normalized features.
+    """
+    for feature in features:
+        df = df.withColumn(feature, (col(feature) - mean(feature).over(Window.partitionBy())) / stddev(feature).over(Window.partitionBy()))
+    return df
+
+
+
+from pyspark.sql.functions import col, sqrt, sum as sql_sum
+from pyspark.sql.window import Window
+
+def calculate_similarity(spark, non_pwm_df, pwm_df, features):
+    """
+    Calculates cosine similarity between non-PWM and PWM client feature vectors.
+
+    Args:
+        spark (SparkSession): The Spark session object.
+        non_pwm_df (DataFrame): DataFrame containing non-PWM clients.
+        pwm_df (DataFrame): DataFrame containing PWM clients.
+        features (list of str): List of feature columns used for similarity calculation.
+
+    Returns:
+        DataFrame: A DataFrame with hh_id_in_wh and their maximum similarity scores.
+    """
+    # Normalize features in both DataFrames
+    non_pwm_df = normalize_features(non_pwm_df, features)
+    pwm_df = normalize_features(pwm_df, features)
+
+    # Cross join PWM and non-PWM clients (Optimize this step based on the data size)
+    cross_df = non_pwm_df.crossJoin(pwm_df.select(col("hh_id_in_wh").alias("pwm_hh_id_in_wh"), *features))
+
+    # Calculate dot products for cosine similarity
+    dot_products = sum((col(f) * col(f"pwm_{f}")) for f in features)
+    norms = sqrt(sum(col(f)**2 for f in features))
+
+    cross_df = cross_df.withColumn("cosine_similarity", dot_products / (norms * norms))
+
+    # Calculate the maximum similarity for each non-PWM client
+    windowSpec = Window.partitionBy("hh_id_in_wh")
+    result_df = cross_df.withColumn("max_similarity", sql_sum("cosine_similarity").over(windowSpec))
+
+    return result_df.select("hh_id_in_wh", "max_similarity").distinct()
+
+
