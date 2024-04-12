@@ -43,36 +43,64 @@ def calculate_similarity(spark, df, pwm_hh_ids, features):
 
 
 from pyspark.ml.clustering import KMeans
-from pyspark.sql.functions import monotonically_increasing_id
+from pyspark.ml.feature import VectorAssembler, StandardScaler
+from pyspark.ml.linalg import Vectors
+from pyspark.ml import Pipeline
+from pyspark.sql.functions import udf, col
+from pyspark.sql.types import FloatType
+import numpy as np
 
-def perform_clustering(df, num_clusters):
+def perform_clustering(df, features, k):
     """
-    Perform clustering on the scaled features and return cluster centers.
+    Performs K-Means clustering on the PWM data and returns the cluster centers.
     
     Args:
-        df (DataFrame): DataFrame with 'scaledFeatures' for clustering.
-        num_clusters (int): Number of clusters to form.
-    
+        df (DataFrame): DataFrame containing only PWM client data.
+        features (list): List of feature names to include in the clustering.
+        k (int): Number of clusters.
+        
     Returns:
-        list: List of cluster centers as dense vectors.
+        DataFrame: DataFrame containing cluster centers.
     """
-    kmeans = KMeans(featuresCol="scaledFeatures", k=num_clusters, seed=1)
-    model = kmeans.fit(df)
-    return model.clusterCenters()
+    assembler = VectorAssembler(inputCols=features, outputCol="features")
+    scaler = StandardScaler(inputCol="features", outputCol="scaledFeatures")
+    
+    # Pipeline: Assemble features -> Normalize -> Cluster
+    kmeans = KMeans(featuresCol="scaledFeatures", k=k)
+    pipeline = Pipeline(stages=[assembler, scaler, kmeans])
+    
+    model = pipeline.fit(df)
+    centers = model.stages[-1].clusterCenters()
+    
+    # Convert cluster centers to DataFrame for easier processing in similarity calculation
+    centers_df = spark.createDataFrame([Vectors.dense(center) for center in centers], ["features"])
+    return centers_df
 
-def calculate_similarity_with_clusters(df_non_pwm, centers):
+def calculate_cosine_similarity(v1, v2):
+    """ Compute the cosine similarity between two vectors """
+    return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
+
+cosine_similarity_udf = udf(calculate_cosine_similarity, FloatType())
+
+def calculate_similarity(df, cluster_centers, features):
     """
-    Calculate similarity of non-PWM clients to each cluster center.
+    Calculates the similarity of all clients to each cluster center.
     
     Args:
-        df_non_pwm (DataFrame): DataFrame containing non-PWM clients with scaled features.
-        centers (list): List of cluster centers.
+        df (DataFrame): DataFrame with all clients and their features.
+        cluster_centers (DataFrame): DataFrame of cluster centers from K-Means.
+        features (list): List of features to calculate similarity on.
     
     Returns:
-        DataFrame: Updated DataFrame with similarity scores to each cluster.
+        DataFrame: DataFrame with similarity scores.
     """
-    # Assuming similarity calculation function is available
-    for i, center in enumerate(centers):
-        df_non_pwm = df_non_pwm.withColumn(f"similarity_to_cluster_{i}", cosine_similarity_udf("scaledFeatures", F.lit(center.tolist())))
+    # Ensure feature vectors are available in df
+    df = VectorAssembler(inputCols=features, outputCol="features").transform(df)
     
-    return df_non_pwm
+    # Calculate similarity between each client and each cluster center
+    for i, center in enumerate(cluster_centers.collect()):
+        center_features = center["features"]
+        df = df.withColumn(f"similarity_to_cluster_{i}", cosine_similarity_udf(col("features"), lit(center_features)))
+    
+    return df
+
