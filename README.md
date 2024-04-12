@@ -10,6 +10,7 @@ Welcome to our Private Wealth Management Project demonstration. Today, we'll dis
 The project is designed with modularity and flexibility in mind, allowing for easy adjustments and scalability. Our initial goal was to thoroughly understand our data and establish a versatile pipeline that accommodates various features and models.
 
 ## primary data source
+```
 dm_r3.pwm_mstr_dtl_daily
  |-- ar_id: long (nullable = true)
  |-- ip_id: long (nullable = true)
@@ -45,7 +46,7 @@ dm_r3.pwm_mstr_dtl_daily
  |-- hh_id_in_wh: string (nullable = true)
  |-- hh_name: string (nullable = true)
  |-- business_date: string (nullable = true)
-
+```
 
 
 ## File Structure and Code Organization
