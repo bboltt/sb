@@ -1,1 +1,3 @@
 In the early stage of this project. The initial goal was to understand our data and create a scalable and modular pipeline that contains all stages of our data processing needs—from data ingestion and preprocessing to feature engineering and modeling. This will allow us to easily adapt by incorporating and changing various features, models, and methodologies by iterations. 
+
+
