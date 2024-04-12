@@ -104,3 +104,45 @@ def calculate_similarity(df, cluster_centers, features):
     
     return df
 
+
+import pandas as pd
+
+def evaluate_prospects(top_n_clients_list, validswitches_df):
+    """
+    Evaluates the precision and recall of the identified prospects against the ground truth data.
+
+    Args:
+        top_n_clients_list (list): List of client IDs that the model identified as top prospects.
+        validswitches_df (pd.DataFrame): DataFrame containing the ground truth data with client IDs.
+
+    Returns:
+        dict: Dictionary containing precision and recall values.
+    """
+
+    # Convert the ground truth DataFrame's column to a set for faster lookup
+    ground_truth_set = set(validswitches_df["hh_id_in_wh"])
+
+    # Convert the list of identified top clients to a set
+    identified_set = set(top_n_clients_list)
+
+    # Calculate true positives (TP): Identified clients that are truly PWM clients
+    true_positives = len(identified_set.intersection(ground_truth_set))
+
+    # Calculate false positives (FP): Identified clients that are not PWM clients
+    false_positives = len(identified_set - ground_truth_set)
+
+    # Calculate false negatives (FN): PWM clients not identified by the model
+    false_negatives = len(ground_truth_set - identified_set)
+
+    # Precision: Proportion of identified clients who are true PWM clients
+    precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+
+    # Recall: Proportion of actual PWM clients who were identified
+    recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+
+    return {
+        "precision": precision,
+        "recall": recall
+    }
+
+
