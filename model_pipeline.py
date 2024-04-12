@@ -40,3 +40,39 @@ def calculate_similarity(spark, df, pwm_hh_ids, features):
 
     return top_similarities.select(non_pwm_df["hh_id_in_wh"], "cosine_similarity").distinct()
 
+
+
+from pyspark.ml.clustering import KMeans
+from pyspark.sql.functions import monotonically_increasing_id
+
+def perform_clustering(df, num_clusters):
+    """
+    Perform clustering on the scaled features and return cluster centers.
+    
+    Args:
+        df (DataFrame): DataFrame with 'scaledFeatures' for clustering.
+        num_clusters (int): Number of clusters to form.
+    
+    Returns:
+        list: List of cluster centers as dense vectors.
+    """
+    kmeans = KMeans(featuresCol="scaledFeatures", k=num_clusters, seed=1)
+    model = kmeans.fit(df)
+    return model.clusterCenters()
+
+def calculate_similarity_with_clusters(df_non_pwm, centers):
+    """
+    Calculate similarity of non-PWM clients to each cluster center.
+    
+    Args:
+        df_non_pwm (DataFrame): DataFrame containing non-PWM clients with scaled features.
+        centers (list): List of cluster centers.
+    
+    Returns:
+        DataFrame: Updated DataFrame with similarity scores to each cluster.
+    """
+    # Assuming similarity calculation function is available
+    for i, center in enumerate(centers):
+        df_non_pwm = df_non_pwm.withColumn(f"similarity_to_cluster_{i}", cosine_similarity_udf("scaledFeatures", F.lit(center.tolist())))
+    
+    return df_non_pwm
