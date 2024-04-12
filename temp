@@ -27,24 +27,24 @@ def calculate_similarity(df, cluster_centers, features):
 
 
 
+from pyspark.sql.functions import udf, col, array
+from pyspark.sql.types import ArrayType, FloatType, DoubleType
 
-from pyspark.sql.functions import udf, col
-import numpy as np
-
+# Assuming the cosine_similarity_udf is defined correctly, you might define it like this:
 def cosine_similarity(v1, v2):
     """ Compute the cosine similarity between two lists """
-    v1 = np.array(v1)
-    v2 = np.array(v2)
+    import numpy as np
     return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
 
-cosine_similarity_udf = udf(cosine_similarity)
+cosine_similarity_udf = udf(cosine_similarity, FloatType())
 
+# Use the array function properly when calling the UDF
 def calculate_similarity(df, cluster_centers, features):
-    # Assuming the features column is already in the desired format
+    """Calculate similarity of all clients to each cluster center."""
     for i, center in enumerate(cluster_centers.collect()):
-        center_features = center['features']
-        df = df.withColumn(f"similarity_to_cluster_{i}", cosine_similarity_udf(col("features"), array(center_features)))
+        center_features = center['features']  # This should be a list of floats
+        # Here we use the array function to convert a Python list to a Spark SQL array
+        df = df.withColumn(f"similarity_to_cluster_{i}", cosine_similarity_udf(col("features"), array([lit(x) for x in center_features])))
     
     return df
-
 
