@@ -25,3 +25,26 @@ def calculate_similarity(df, cluster_centers, features):
     
     return df
 
+
+
+
+from pyspark.sql.functions import udf, col
+import numpy as np
+
+def cosine_similarity(v1, v2):
+    """ Compute the cosine similarity between two lists """
+    v1 = np.array(v1)
+    v2 = np.array(v2)
+    return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
+
+cosine_similarity_udf = udf(cosine_similarity)
+
+def calculate_similarity(df, cluster_centers, features):
+    # Assuming the features column is already in the desired format
+    for i, center in enumerate(cluster_centers.collect()):
+        center_features = center['features']
+        df = df.withColumn(f"similarity_to_cluster_{i}", cosine_similarity_udf(col("features"), array(center_features)))
+    
+    return df
+
+
