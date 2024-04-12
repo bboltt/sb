@@ -1,5 +1,3 @@
-
-```markdown
 # Generating the Top N Clients List
 
 The process of generating the `top_n_clients_list` involves several key steps from data preparation through to the final selection of prospects. Here's a step-by-step breakdown and a visual flowchart illustrating this process:
@@ -26,7 +24,6 @@ The process of generating the `top_n_clients_list` involves several key steps fr
 
 ## Visual Flowchart
 
-```
 Feature Engineering
         |
         v
@@ -40,7 +37,6 @@ Ranking and Selecting Top Prospects
         |
         v
 Extracting the Top N Clients ---> Continuous Refinement
-```
 
 This flowchart visually represents each step in the process, aiding in understanding how data moves through the pipeline and how decisions are made.
 
