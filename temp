@@ -1,0 +1,16 @@
+from pyspark.sql.functions import udf
+from pyspark.sql.types import ArrayType, FloatType
+from pyspark.ml.linalg import Vectors
+
+# Define a UDF to convert Vectors or Numpy arrays to Python lists
+def vector_to_list(vector):
+    return vector.toArray().tolist()  # Convert vector to array then to list
+
+# Register the UDF with the appropriate return type
+vector_to_list_udf = udf(vector_to_list, ArrayType(FloatType()))
+
+# Apply the UDF to the DataFrame
+centers_df = centers_df.withColumn("features", vector_to_list_udf("features"))
+
+# Show the transformed DataFrame
+centers_df.show(truncate=False)
