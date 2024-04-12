@@ -14,3 +14,14 @@ centers_df = centers_df.withColumn("features", vector_to_list_udf("features"))
 
 # Show the transformed DataFrame
 centers_df.show(truncate=False)
+
+
+
+def calculate_similarity(df, cluster_centers, features):
+    """Calculate similarity of all clients to each cluster center."""
+    for i, center in enumerate(cluster_centers.collect()):
+        center_features = center['features']  # already a list now
+        df = df.withColumn(f"similarity_to_cluster_{i}", cosine_similarity_udf(col("features"), array(center_features)))
+    
+    return df
+
