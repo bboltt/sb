@@ -1,126 +1,53 @@
-from pyspark.sql import functions as F
-from pyspark.sql.functions import datediff, current_date, expr
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, min, max, sequence, to_date
+import matplotlib.pyplot as plt
 
-class FeatureEngineeringPipelineSpark:
-    def __init__(self, spark_df):
-        self.df = spark_df
-    
-    def preprocess(self):
-        # Convert dates from string to date type if necessary
-        self.df = self.df.withColumn("business_date", F.col("business_date").cast("date"))
-        self.df = self.df.withColumn("open_date", F.col("open_date").cast("date"))
-        self.df = self.df.withColumn("close_date", F.col("close_date").cast("date"))
-        return self
-    
-    def add_account_longevity(self):
-        # Assuming `open_date` is the account opening date
-        self.df = self.df.withColumn("account_longevity", datediff(current_date(), F.col("open_date")))
-        return self
-    
-    def add_balance_features(self):
-        # Calculate mean, max, and min balances (example with curr_bal_amt)
-        self.df = self.df.withColumn("curr_bal_amt", F.col("curr_bal_amt").cast("float"))  # Ensure column is float type
-        balance_stats = self.df.groupBy("hh_id_in_wh").agg(
-            F.mean("curr_bal_amt").alias("curr_bal_amt_mean"),
-            F.max("curr_bal_amt").alias("curr_bal_amt_max"),
-            F.min("curr_bal_amt").alias("curr_bal_amt_min")
-        )
-        self.df = self.df.join(balance_stats, "hh_id_in_wh", "left")
-        return self
-    
-    def add_product_diversity(self):
-        # Count distinct products used by hh_id_in_wh
-        product_diversity = self.df.groupBy("hh_id_in_wh").agg(
-            F.countDistinct("prd_code").alias("product_diversity")
-        )
-        self.df = self.df.join(product_diversity, "hh_id_in_wh", "left")
-        return self
-    
-    def execute(self):
-        self.preprocess()
-        self.add_account_longevity()
-        self.add_balance_features()
-        self.add_product_diversity()
-        # Add more feature engineering methods as needed
-        return self.df
+# Step 1: Initialize Spark Session
+spark = SparkSession.builder.appName("FraudDetectionAnalysis").getOrCreate()
 
+# Step 2: Load Data
+# Replace `path_to_file` with your data file's path
+data_path = "path_to_file.csv"
+df = spark.read.csv(data_path, header=True, inferSchema=True)
 
+# Ensure `trans_date` is in date format
+df = df.withColumn("trans_date", to_date(col("trans_date"), "yyyy-MM-dd"))
 
+# Step 3: Generate Complete Date Range
+# Generate a sequence of dates from the minimum to the maximum date
+date_range = df.select(
+    sequence(min(col("trans_date")), max(col("trans_date"))).alias("date_seq")
+)
 
-def load_pwm_clients(spark, reference_date='2024-04-08'):
-    """
-    Loads the IDs of clients who are currently private wealth management (PWM) clients as of a given date.
+# Explode the sequence into a DataFrame with all possible dates
+complete_dates = date_range.selectExpr("explode(date_seq) as trans_date")
 
-    Args:
-        spark (SparkSession): The Spark session object.
-        reference_date (str): The date to filter PWM clients.
+# Step 4: Outer Join to Include All Dates
+# Perform an outer join between the complete date range and the original dataset
+df_full = complete_dates.join(df, ["trans_date"], "left_outer")
 
-    Returns:
-        DataFrame: A DataFrame containing distinct hh_id_in_wh for PWM clients.
-    """
-    query = f"""
-    SELECT DISTINCT hh_id_in_wh 
-    FROM dm_r3.pwm_mstr_dtl_daily 
-    WHERE business_date = '{reference_date}' AND seg_code = 'PWM'
-    """
-    return spark.sql(query)
+# Step 5: Convert to Pandas for Interpolation
+# Convert Spark DataFrame to Pandas
+pandas_df = df_full.toPandas()
 
+# Set `trans_date` as the index
+pandas_df.set_index("trans_date", inplace=True)
 
+# Interpolate missing values (linear interpolation for numerical columns)
+pandas_df = pandas_df.interpolate(method="linear")
 
+# Reset the index after interpolation
+pandas_df.reset_index(inplace=True)
 
-
-from pyspark.sql.functions import col, stddev, mean
-
-def normalize_features(df, features):
-    """
-    Normalize the specified features of a DataFrame to have zero mean and unit variance.
-
-    Args:
-        df (DataFrame): The Spark DataFrame to be normalized.
-        features (list of str): List of column names to normalize.
-
-    Returns:
-        DataFrame: The DataFrame with normalized features.
-    """
-    for feature in features:
-        df = df.withColumn(feature, (col(feature) - mean(feature).over(Window.partitionBy())) / stddev(feature).over(Window.partitionBy()))
-    return df
-
-
-
-from pyspark.sql.functions import col, sqrt, sum as sql_sum
-from pyspark.sql.window import Window
-
-def calculate_similarity(spark, non_pwm_df, pwm_df, features):
-    """
-    Calculates cosine similarity between non-PWM and PWM client feature vectors.
-
-    Args:
-        spark (SparkSession): The Spark session object.
-        non_pwm_df (DataFrame): DataFrame containing non-PWM clients.
-        pwm_df (DataFrame): DataFrame containing PWM clients.
-        features (list of str): List of feature columns used for similarity calculation.
-
-    Returns:
-        DataFrame: A DataFrame with hh_id_in_wh and their maximum similarity scores.
-    """
-    # Normalize features in both DataFrames
-    non_pwm_df = normalize_features(non_pwm_df, features)
-    pwm_df = normalize_features(pwm_df, features)
-
-    # Cross join PWM and non-PWM clients (Optimize this step based on the data size)
-    cross_df = non_pwm_df.crossJoin(pwm_df.select(col("hh_id_in_wh").alias("pwm_hh_id_in_wh"), *features))
-
-    # Calculate dot products for cosine similarity
-    dot_products = sum((col(f) * col(f"pwm_{f}")) for f in features)
-    norms = sqrt(sum(col(f)**2 for f in features))
-
-    cross_df = cross_df.withColumn("cosine_similarity", dot_products / (norms * norms))
-
-    # Calculate the maximum similarity for each non-PWM client
-    windowSpec = Window.partitionBy("hh_id_in_wh")
-    result_df = cross_df.withColumn("max_similarity", sql_sum("cosine_similarity").over(windowSpec))
-
-    return result_df.select("hh_id_in_wh", "max_similarity").distinct()
+# Step 6: Plot Interpolated Time Series
+# Example: Plotting the interpolated 'amount' column
+plt.figure(figsize=(12, 6))
+plt.plot(pandas_df["trans_date"], pandas_df["amount"], label="Interpolated Amount")
+plt.title("Time Series with Interpolated Missing Dates")
+plt.xlabel("Date")
+plt.ylabel("Amount")
+plt.legend()
+plt.grid()
+plt.show()
 
 
